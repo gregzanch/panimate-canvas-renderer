@@ -1,0 +1,9 @@
+{
+  "name": "canvas-kit",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "canvaskit-wasm": "^0.19.0"
+  }
+}
