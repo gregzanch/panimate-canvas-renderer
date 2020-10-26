@@ -1,6 +1,6 @@
-# panimate-skia
+# panimate-canvas-renderer
 
-## objectives
+## Objectives
 
 - take in a series of images (from search algo)
 - take in a transcript (from speech to text)
@@ -8,7 +8,7 @@
 
 - render the specific template with the transcript+images
 
-## procedure of the program
+## Procedure
 
 - parse the input (images, transcript, template)
 
@@ -40,7 +40,7 @@
 - iterate over total frames (duration\*fps)
 - for each frame, call draw();
 
-## implementation
+## Implementation
 
 ### Classes and Structs
 
