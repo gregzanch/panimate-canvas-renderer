@@ -1,5 +1,7 @@
 # panimate-canvas-renderer
 
+## Design Doc (DD)
+
 ## Objectives
 
 - take in a series of images (from search algo)
