@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "allowJs": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "esnext",
+    "module": "CommonJS",
+    "typeRoots": ["node_modules/@types"],
+    "lib": ["es2018", "es6", "esnext", "dom"],
+    "moduleResolution": "Node",
+    "noImplicitAny": false,
+    "outDir": "build",
+    "rootDir": "./src"
+  },
+  "include": ["src/*.ts", "src/render/renderer.ts"]
+}
