@@ -1,5 +1,10 @@
 # panimate-canvas-renderer
 
+## Resources
+
+- [Quickstart](https://skia.org/user/modules/quickstart)
+- [PathKit](https://skia.org/user/modules/pathkit)
+
 ## Design Doc (DD)
 
 ## Objectives

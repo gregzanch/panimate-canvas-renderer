@@ -12,5 +12,5 @@
     "outDir": "build",
     "rootDir": "./src"
   },
-  "include": ["src/*.ts", "src/render/renderer.ts"]
+  "include": ["src/*.ts", "src/render/renderer.ts", "src/types/types.ts"]
 }

@@ -1,36 +1,23 @@
-import { CanvasKit } from "canvaskit-wasm";
 import CanvasKitInit from "canvaskit-wasm/bin/canvaskit";
-import fs from "fs";
-import path from "path";
 import { Renderer } from "./render/renderer";
-import {locateFile} from './locate';
-import {FfmpegArgs, startProcess} from './render/start-process';
+import { RenderParams } from "./types/render-params";
+import { locateFile } from "./locate";
+import Timer from "./util/timer";
+import { readJSON } from "./util/json";
 
-CanvasKitInit({ locateFile }).then(main).catch(console.error);
+async function main(args: RenderParams) {
+  const timer = new Timer();
+  const CanvasKit = (await CanvasKitInit({ locateFile })) as any;
 
+  const renderer = new Renderer(CanvasKit, args);
+  await renderer.load();
+  const totalFrames = args.framerate * args.duration;
+  const key = `renderer.run() @ ${totalFrames}`;
+  timer.start(key);
+  await renderer.run();
+  timer.stop(key);
 
-
-function main(CanvasKit){
-  const renderer = new Renderer(CanvasKit, {
-    ffmpegPath: "/usr/local/bin/ffmpeg",
-    audioFilePath: "res/audio/dream.wav",
-    enableFfmpegLog: false,
-    fast: false,
-    outPath: "out/out.mp4",
-    loopAudio: true,
-    verbose: false,
-    framerate: 24,
-    duration: 30,
-    height: 500,
-    width: 500
-  });
-
-  console.time("nek");
-  renderer.run().catch(console.log).finally(()=>{
-    console.timeEnd("nek");
-    process.exit(0);
-  })
-
-
+  timer.print();
 }
 
+main(readJSON("test/args.jsonc")).catch(console.log);

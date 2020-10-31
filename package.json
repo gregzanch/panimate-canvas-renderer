@@ -4,17 +4,25 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "build": "node_modules/.bin/tsc",
-    "start": "nodemon -e \"ts\" --exec \"node_modules/.bin/tsc && node build/index.js\""
+    "build": "ncc build ./src/index.ts -o build",
+    "test": "node build/index.js",
+    "start": "ncc build ./src/index.ts -w -o build"
   },
   "dependencies": {
     "@types/canvaskit-wasm": "^0.18.0",
+    "abs-svg-path": "^0.1.1",
     "canvaskit-wasm": "^0.19.0",
-    "execa": "^4.1.0"
+    "execa": "^4.1.0",
+    "jsonc-parser": "^2.3.1",
+    "parse-svg-path": "^0.1.2",
+    "skia-canvas": "^0.9.19",
+    "svg-parser": "^2.0.4",
+    "svg-path-parser": "^1.1.0"
   },
   "devDependencies": {
     "@types/execa": "^2.0.0",
     "@types/node": "^14.14.3",
+    "@vercel/ncc": "^0.24.1",
     "nodemon": "^2.0.6",
     "ts-node": "^9.0.0",
     "typescript": "^4.0.3"

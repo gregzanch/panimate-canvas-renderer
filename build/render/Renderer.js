@@ -7,113 +7,84 @@ exports.Renderer = void 0;
 const start_process_1 = require("./start-process");
 const fs_1 = __importDefault(require("fs"));
 const path_1 = __importDefault(require("path"));
+const timer_1 = __importDefault(require("../util/timer"));
 const robotoData = fs_1.default.readFileSync(path_1.default.join(process.cwd(), "res/fonts/Roboto/Roboto-Regular.ttf"));
 class Renderer {
     constructor(CanvasKit, args) {
+        this.frame = 0;
         this.draw = (t = 0) => {
             if (t > this.args.duration) {
                 return null;
             }
-            const path = starPath(this.CanvasKit, 100, 100);
-            this.CanvasKit.setCurrentContext(this.context);
-            const dpe = this.CanvasKit.PathEffect.MakeDash([15, 5, 5, 10], this.offset / 5);
-            this.offset++;
-            this.paint.setPathEffect(dpe);
-            this.paint.setStyle(this.CanvasKit.PaintStyle.Stroke);
-            this.paint.setStrokeWidth(Math.random());
-            this.paint.setAntiAlias(true);
-            this.paint.setColor(this.CanvasKit.parseColorString('#4746cd'));
+            // this.CanvasKit.setCurrentContext(this.context);
+            // // this.skcanvas.clear(this.CanvasKit.WHITE);
+            // const shader = this.shaders[0].makeShader([
+            //   Math.sin(Date.now() / 2000) / 5,
+            //   256, 256,
+            //   1, 0, 0, 1,
+            //   0, 1, 0, 1],
+            //   true /*=opaque*/);
+            // this.paint.setShader(shader);
+            // this.skcanvas.drawRect(this.CanvasKit.LTRBRect(0, 0, 512, 512), this.paint);
+            // shader.delete();
             this.skcanvas.clear(this.CanvasKit.Color(255, 255, 255, 1.0));
-            this.skcanvas.drawPath(path, this.paint);
-            // const textPaint = new this.CanvasKit.Paint();
-            this.paint.setStyle(this.CanvasKit.PaintStyle.Fill);
-            this.paint.setColor(this.CanvasKit.Color(40, 0, 0));
-            // this.paint.setStrokeWidth(1);
-            // textPaint.setAntiAlias(true);
+            // this.paint.setStyle(this.CanvasKit.PaintStyle.Fill);
+            // this.paint.setColor(this.CanvasKit.Color(40, 0, 0));
             this.skcanvas.drawText(t.toFixed(2), 10, 280, this.paint, this.roboto);
-            // this.skcanvas.flush();
-            this.surface.flush();
-            dpe.delete();
-            path.delete();
-            const img = this.surface.makeImageSnapshot();
-            if (!img) {
-                console.error("no snapshot");
-                return;
-            }
-            // img.readPixels(this.CanvasKit.image, 0, 0)
-            const png = img.encodeToData();
-            if (!png) {
-                console.error("encoding failure");
-                return;
-            }
-            const pngBytes = this.CanvasKit.getDataBytes(png);
-            const buffer = Buffer.from(pngBytes);
-            // fs.writeFileSync(`out/${t}.png`, buffer.toString("base64"), {
-            // encoding: "base64",
-            // });
-            return buffer;
-            // const img = surface.makeImageSnapshot();
-            // if (!img) {
-            //   console.error("no snapshot");
-            //   return;
+            // for(let i = 0; i<this.animations.length; i++){
+            //   const prog = (t * this.args.framerate) / (this.animations[i].duration() * this.animations[i].fps());
+            //   this.animations[i].seek(prog % 1.0);
+            //   this.animations[i].render(this.skcanvas);
             // }
-            // img.readPixels(this.CanvasKit.image, 0, 0)
-            // const png = img.encodeToData();
-            // if (!png) {
-            //   console.error("encoding failure");
-            //   return;
-            // }
-            // const pngBytes = this.CanvasKit.getDataBytes(png);
-            // let buffer = Buffer.from(pngBytes).toString("base64");
-            // fs.writeFileSync("out/out.png", buffer, {
+            // this.surface.flush();
+            // path.delete();
+            // svgpath.delete();
+            // fs.writeFileSync(`out/${this.frame++}.png`, buffer.toString("base64"), {
             //   encoding: "base64",
             // });
-            // // These delete calls free up memeory in the C++ WASM memory block.
-            // dpe.delete();
-            // skpath.delete();
-            // textPaint.delete();
-            // paint.delete();
-            // roboto.delete();
-            // textFont.delete();
-            // surface.dispose();
+            //@ts-ignore
+            return Buffer.from(this.CanvasKit.getDataBytes(this.surface.makeImageSnapshot().encodeToData()));
+        };
+        this.starPath = (X = 128, Y = 128, R = 116) => {
+            let p = new this.CanvasKit.Path();
+            p.moveTo(X + R, Y);
+            for (let i = 1; i < 8; i++) {
+                let a = 2.6927937 * i;
+                p.lineTo(X + R * Math.cos(a), Y + R * Math.sin(a));
+            }
+            return p;
+        };
+        this.log = (...args) => {
+            if (this.args.verbose) {
+                console.log(...args);
+            }
         };
         this.run = async () => {
             let outProcess;
-            let outProcessExitCode;
+            let outProcessError;
             try {
                 outProcess = start_process_1.startProcess(this.args);
-                let outProcessError;
                 outProcess.on('exit', (code) => {
-                    if (this.args.verbose) {
-                        console.log('Output ffmpeg exited', code);
-                    }
-                    outProcessExitCode = code;
+                    this.log('Output ffmpeg exited', code);
                 });
-                // If we write and get an EPIPE (like when ffmpeg fails or is finished), we could get an unhandled rejection if we don't catch the promise
-                // (and meow causes the CLI to exit on unhandled rejections making it hard to see)
                 outProcess.catch((err) => {
                     console.log(err);
                     outProcessError = err;
                 });
-                let t = 0;
                 let frame = 0;
                 while (true) {
-                    const nullOutput = false;
-                    t = frame / this.args.framerate;
-                    const outFrameData = this.draw(t);
-                    if (outFrameData) {
-                        await new Promise((r) => outProcess.stdin.write(outFrameData, r));
+                    this.timer.start("draw");
+                    const bufferData = this.draw(frame / this.args.framerate);
+                    this.timer.stop("draw");
+                    this.timer.print("draw");
+                    if (bufferData && !outProcessError) {
+                        await new Promise((r) => outProcess.stdin.write(bufferData, r));
+                        frame++;
                     }
                     else {
                         break;
                     }
-                    if (outProcessError)
-                        break;
-                    frame++;
-                    // totalFramesWritten += 1;
-                    // fromClipFrameAt += 1;
-                    // if (isInTransition) toClipFrameAt += 1;
-                } // End while loop
+                }
                 outProcess.stdin.end();
             }
             catch (err) {
@@ -121,17 +92,13 @@ class Renderer {
                 throw err;
             }
             finally {
-                // if (verbose) console.log('Cleanup');
-                // if (frameSource1) await frameSource1.close();
-                // if (frameSource2) await frameSource2.close();
-                // await fs.remove(tmpDir);
-                console.log('done');
-                // return 
+                this.log('done');
             }
             return;
         };
         this.CanvasKit = CanvasKit;
         this.args = args;
+        this.timer = new timer_1.default("ms");
         this.context = this.CanvasKit.currentContext();
         this.surface = this.CanvasKit.MakeSurface(this.args.width, this.args.height);
         if (!this.surface) {
@@ -143,15 +110,30 @@ class Renderer {
         this.fontMgr = this.CanvasKit.FontMgr.RefDefault();
         //@ts-ignore
         this.roboto = new this.CanvasKit.Font(this.fontMgr.MakeTypefaceFromData(robotoData), 24);
+        this.animations = args.animations.map(filepath => this.CanvasKit.MakeAnimation(fs_1.default.readFileSync(path_1.default.join(process.cwd(), filepath), 'utf-8')));
+        const prog = `
+uniform float rad_scale;
+uniform float2 in_center;
+uniform float4 in_colors0;
+uniform float4 in_colors1;
+
+half4 main(float2 p) {
+    float2 pp = p - in_center;
+    float radius = sqrt(dot(pp, pp));
+    radius = sqrt(radius);
+    float angle = atan(pp.y / pp.x);
+    float t = (angle + 3.1415926/2) / (3.1415926);
+    t += radius * rad_scale;
+    t = fract(t);
+    return half4(mix(in_colors0, in_colors1, t));
+}
+
+`;
+        // If there are multiple contexts on the screen, we need to make sure
+        // we switch to this one before we draw.
+        this.shaders = [this.CanvasKit.RuntimeEffect.Make(prog)];
+        // bounds = ;
+        // let firstFrame = Date.now();
     }
 }
 exports.Renderer = Renderer;
-function starPath(CanvasKit, X = 128, Y = 128, R = 116) {
-    let p = new CanvasKit.Path();
-    p.moveTo(X + R, Y);
-    for (let i = 1; i < 8; i++) {
-        let a = 2.6927937 * i;
-        p.lineTo(X + R * Math.cos(a), Y + R * Math.sin(a));
-    }
-    return p;
-}

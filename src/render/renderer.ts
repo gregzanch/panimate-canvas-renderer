@@ -1,215 +1,202 @@
-import { Canvas, CanvasKit, Font, FontMgr, Paint, Surface, Typeface } from 'canvaskit-wasm';
-import {FfmpegArgs, startProcess} from './start-process';
-import fs from 'fs';
-import path from 'path'
+import {
+  Canvas,
+  CanvasKit,
+  Font,
+  FontMgr,
+  Paint,
+  SkottieAnimation,
+  Surface,
+  Typeface,
+  PathCommand,
+  RuntimeEffect,
+  InputRect,
+} from "canvaskit-wasm";
+import { startProcess } from "./start-process";
+import fs from "fs";
+import path from "path";
+import { ExecaChildProcess, ExecaError } from "execa";
+import Timer from "../util/timer";
+import { parse } from "../util/svg-parser";
+import { parseTransform } from "../util/parse-transform";
+import Colors from "../util/colors";
+import parseSVG from "svg-path-parser";
+import { RenderParams } from "../types/render-params";
+import { loadFonts } from "../util/load";
+import { SvgRenderer } from "./svg-renderer";
+import { between, EasingFunctions, cubicBezier } from "../util/math";
 
-const robotoData = fs.readFileSync(
-  path.join(process.cwd(), "res/fonts/Roboto/Roboto-Regular.ttf")
-);
-
-
-export interface RendererArgs extends FfmpegArgs {
-  width: number;
-  height: number;
-  duration: number;
-  framerate: number;
-}
-
-
-
-
-export class Renderer { 
-  CanvasKit: CanvasKit
+export class Renderer {
+  CanvasKit: CanvasKit;
   surface: Surface;
   skcanvas: Canvas;
   paint: Paint;
   context: number;
   offset: number;
-  args: RendererArgs;
+  args: RenderParams;
   fontMgr: FontMgr;
-  // roboto: Typeface;
-  roboto: Font;
-  constructor(CanvasKit: CanvasKit, args: RendererArgs){
+
+  timer: Timer;
+  fonts: {
+    roboto: Font;
+    caveat: Font;
+  };
+  textPaint: Paint;
+  frame = 0;
+  lotties: SkottieAnimation[];
+  assets: { [key: string]: SkottieAnimation | SvgRenderer };
+
+  constructor(CanvasKit: CanvasKit, args: RenderParams) {
     this.CanvasKit = CanvasKit;
     this.args = args;
+    this.timer = new Timer("ms");
     this.context = this.CanvasKit.currentContext();
     this.surface = this.CanvasKit.MakeSurface(this.args.width, this.args.height);
     if (!this.surface) {
-      console.log('Could not make surface');
+      console.log("Could not make surface");
       return;
     }
     this.skcanvas = this.surface.getCanvas();
     this.paint = new this.CanvasKit.Paint();
-
-    this.fontMgr = this.CanvasKit.FontMgr.RefDefault();
-    //@ts-ignore
-    this.roboto = new this.CanvasKit.Font(this.fontMgr.MakeTypefaceFromData(robotoData), 24);
+    this.paint.setAntiAlias(true);
+    this.assets = {} as { [key: string]: SkottieAnimation | SvgRenderer };
   }
+
+  makeFont = (buf: ArrayBuffer, size: number) => {
+    //@ts-ignore
+    return new this.CanvasKit.Font(this.fontMgr.MakeTypefaceFromData(buf), size);
+  };
+
+  loadFonts = async () => {
+    this.fontMgr = this.CanvasKit.FontMgr.RefDefault();
+    const [robotoBuffer, caveatBuffer] = await loadFonts(["Roboto/Roboto-Regular.ttf", "Caveat/Caveat-Regular.ttf"]);
+
+    this.fonts = {
+      roboto: this.makeFont(robotoBuffer, 48),
+      caveat: this.makeFont(caveatBuffer, 48),
+    };
+
+    this.textPaint = new this.CanvasKit.Paint();
+    this.textPaint.setAntiAlias(true);
+    this.textPaint.setColor(this.CanvasKit.Color(22, 24, 25, 1.0));
+    this.textPaint.setStyle(this.CanvasKit.PaintStyle.Fill);
+  };
+
+  load = async () => {
+    await this.loadFonts();
+
+    for (const key in this.args.assets) {
+      if (fs.statSync(this.args.assets[key])) {
+        if (this.args.assets[key].endsWith("svg")) {
+          this.assets[key] = new SvgRenderer(this.CanvasKit, { filepath: this.args.assets[key] });
+        } else if (this.args.assets[key].endsWith(".json")) {
+          const filepath = path.join(process.cwd(), this.args.assets[key]);
+          this.assets[key] = this.CanvasKit.MakeAnimation(fs.readFileSync(filepath, "utf-8"));
+        }
+      }
+    }
+  };
+
   draw = (t: number = 0) => {
-    if(t>this.args.duration){
+    if (t > this.args.duration) {
       return null;
     }
-    const path = starPath(this.CanvasKit, 100, 100);
-    this.CanvasKit.setCurrentContext(this.context);
-    const dpe = this.CanvasKit.PathEffect.MakeDash([15, 5, 5, 10], this.offset/5);
-    this.offset++;
 
-    this.paint.setPathEffect(dpe);
-    this.paint.setStyle(this.CanvasKit.PaintStyle.Stroke);
-    this.paint.setStrokeWidth(Math.random());
-    this.paint.setAntiAlias(true);
-    this.paint.setColor(this.CanvasKit.parseColorString('#4746cd'));
-    
-    this.skcanvas.clear(this.CanvasKit.Color(255, 255, 255, 1.0));
-    
-    this.skcanvas.drawPath(path, this.paint);
-    
-    
-    
-    // const textPaint = new this.CanvasKit.Paint();
-    this.paint.setStyle(this.CanvasKit.PaintStyle.Fill);
-    this.paint.setColor(this.CanvasKit.Color(40, 0, 0));
-    // this.paint.setStrokeWidth(1);
-    // textPaint.setAntiAlias(true);
+    this.skcanvas.clear(this.CanvasKit.WHITE);
 
-    this.skcanvas.drawText(t.toFixed(2), 10, 280, this.paint, this.roboto);
-    
+    // this.skcanvas.clear(this.CanvasKit.Color(255, 255, 255, 1.0));
 
+    // this.paint.setStyle(this.CanvasKit.PaintStyle.Fill);
+    // this.paint.setColor(this.CanvasKit.Color(40, 0, 0));
 
+    // this.skcanvas.drawText(t.toFixed(2), 50 * t, 280, this.paint, this.roboto);
 
+    // for (let i = 0; i < this.assets.length; i++) {
+    // this.renderSvgChildren(this.assets[i]);
+    // }
 
-
-
-    // this.skcanvas.flush();
-    this.surface.flush();
-    dpe.delete();
-    path.delete();
-
-
-    const img = this.surface.makeImageSnapshot();
-    if (!img) {
-      console.error("no snapshot");
-      return;
-    }
-    // img.readPixels(this.CanvasKit.image, 0, 0)
-    const png = img.encodeToData();
-    if (!png) {
-      console.error("encoding failure");
-      return;
-    }
-    const pngBytes = this.CanvasKit.getDataBytes(png);
-    const buffer = Buffer.from(pngBytes); 
-    // fs.writeFileSync(`out/${t}.png`, buffer.toString("base64"), {
-      // encoding: "base64",
-    // });
-    return buffer;
-    
-
-    
-
-    
-
-
-
-      // const img = surface.makeImageSnapshot();
-      // if (!img) {
-      //   console.error("no snapshot");
-      //   return;
-      // }
-      // img.readPixels(this.CanvasKit.image, 0, 0)
-      // const png = img.encodeToData();
-      // if (!png) {
-      //   console.error("encoding failure");
-      //   return;
-      // }
-      // const pngBytes = this.CanvasKit.getDataBytes(png);
-      // let buffer = Buffer.from(pngBytes).toString("base64");
-      // fs.writeFileSync("out/out.png", buffer, {
-      //   encoding: "base64",
-      // });
-    
-      // // These delete calls free up memeory in the C++ WASM memory block.
-      // dpe.delete();
-      // skpath.delete();
-      // textPaint.delete();
-      // paint.delete();
-      // roboto.delete();
-      // textFont.delete();
-      // surface.dispose();
-  }
-  run = async () => {
-
-    let outProcess;
-    let outProcessExitCode;
-  
-    try {
-  
-  
-  
-      outProcess = startProcess(this.args);
-  
-      let outProcessError;
-  
-      outProcess.on('exit', (code) => {
-        if (this.args.verbose) {
-          console.log('Output ffmpeg exited', code);
+    let i = 0;
+    const groups = this.args.groups;
+    while (i < groups.length && t >= groups[i].timestamps[0][0]) {
+      const tstart = groups[i].timestamps[0][0];
+      groups[i].images.forEach((img) => {
+        this.skcanvas.save();
+        if (this.assets[img.id] instanceof SvgRenderer) {
+          const scale = cubicBezier(0.01, 0.75, 0.53, 1.005)(Math.min((t - tstart) / 0.5, 1));
+          this.skcanvas.scale(scale, scale);
+          const svg = this.assets[img.id] as SvgRenderer;
+          svg.render(this.CanvasKit, this.paint, this.skcanvas);
+        } else {
+          const animation = this.assets[img.id] as SkottieAnimation;
+          const prog = (t * animation.fps()) / (this.args.framerate * animation.duration());
+          animation.seek(prog % 1.0);
+          animation.render(this.skcanvas, [0, 0, this.args.width, this.args.height]);
         }
-        outProcessExitCode = code;
+        this.skcanvas.restore();
       });
-  
-      // If we write and get an EPIPE (like when ffmpeg fails or is finished), we could get an unhandled rejection if we don't catch the promise
-      // (and meow causes the CLI to exit on unhandled rejections making it hard to see)
+      let j = 0;
+      let str = "";
+      while (j < groups[i].timestamps.length && t > groups[i].timestamps[j][0]) {
+        str += groups[i].words[j] + " ";
+        j++;
+      }
+
+      this.skcanvas.drawText(
+        str,
+        20 + cubicBezier(0.01, 0.75, 0.53, 1.005)(Math.min((t - tstart) / 0.5, 1)) * 100,
+        this.args.height - 60,
+        this.textPaint,
+        this.fonts.caveat
+      );
+
+      i++;
+    }
+
+    this.surface.flush();
+
+    return Buffer.from(this.CanvasKit.getDataBytes(this.surface.makeImageSnapshot().encodeToData()));
+  };
+
+  log = (...args: any) => {
+    if (this.args.verbose) {
+      console.log(...args);
+    }
+  };
+
+  run = async () => {
+    let outProcess: ExecaChildProcess<string>;
+    let outProcessError: ExecaError<string>;
+
+    try {
+      outProcess = startProcess(this.args);
+      outProcess.on("exit", (code) => {
+        this.log("Output ffmpeg exited", code);
+      });
       outProcess.catch((err) => {
         console.log(err);
         outProcessError = err;
       });
-  
-      let t = 0;
+
       let frame = 0;
       while (true) {
-  
-        const nullOutput = false;
-        t = frame / this.args.framerate;
-        const outFrameData = this.draw(t)
-        if(outFrameData) {
-          await new Promise((r) => outProcess.stdin.write(outFrameData, r));
-  
+        this.timer.start("draw");
+        const bufferData = this.draw(frame / this.args.framerate);
+        this.timer.stop("draw");
+        this.timer.print("draw");
+        if (bufferData && !outProcessError) {
+          await new Promise((r) => outProcess.stdin.write(bufferData, r));
+          frame++;
         } else {
           break;
-        } 
-  
-        if (outProcessError) break;
-        frame++;
-        // totalFramesWritten += 1;
-        // fromClipFrameAt += 1;
-        // if (isInTransition) toClipFrameAt += 1;
-      } // End while loop
-  
+        }
+      }
+
       outProcess.stdin.end();
     } catch (err) {
       outProcess.kill();
       throw err;
     } finally {
-      // if (verbose) console.log('Cleanup');
-      // if (frameSource1) await frameSource1.close();
-      // if (frameSource2) await frameSource2.close();
-      // await fs.remove(tmpDir);
-      console.log('done');
-      // return 
+      this.log("done");
     }
     return;
-  }
-  
+  };
 }
-
-function starPath(CanvasKit, X = 128, Y = 128, R = 116) {
-  let p = new CanvasKit.Path();
-  p.moveTo(X + R, Y);
-  for (let i = 1; i < 8; i++) {
-    let a = 2.6927937 * i;
-    p.lineTo(X + R * Math.cos(a), Y + R * Math.sin(a));
-  }
-  return p;
-}
-
-

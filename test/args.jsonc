@@ -1,0 +1,52 @@
+{
+  "ffmpegPath": "/usr/local/bin/ffmpeg",
+  "verbose": false,
+  "audioFilePath": "res/audio/One.wav",
+  "loopAudio": true,
+  "fast": false,
+  "framerate": 30,
+  "duration": 5,
+  "height": 640,
+  "width": 640,
+  "outPath": "out/out.mp4",
+  "loglevel": "error",
+  "hideBanner": true,
+  "assets": {
+    "e7114a56-1b31-11eb-b308-c74a9b0da8dc": "res/lottie/thanks-heart.json",
+    "11bd50fe-1b48-11eb-abb9-f3db5f76001e": "res/lottie/confetti.json",
+    "f2e2cf26-1b31-11eb-8490-1bbfba42d230": "res/svgs/creative.svg"
+  },
+  "camera": {
+    "position": [0, 0]
+  },
+  "groups": [
+    {
+      "position": [0, 0],
+      "words": ["you", "have", "a", "creative", "personality"],
+      "timestamps": [
+        [0.68, 0.83],
+        [0.83, 1],
+        [1, 1.07],
+        [1.07, 1.52],
+        [1.52, 2.34]
+      ],
+      "images": [
+        {
+          "description": "creative person",
+          "id": "f2e2cf26-1b31-11eb-8490-1bbfba42d230",
+          "role": "main"
+        },
+        {
+          "description": "heart",
+          "id": "e7114a56-1b31-11eb-b308-c74a9b0da8dc",
+          "role": "aux"
+        },
+        {
+          "description": "confetti",
+          "id": "11bd50fe-1b48-11eb-abb9-f3db5f76001e",
+          "role": "aux"
+        }
+      ]
+    }
+  ]
+}
